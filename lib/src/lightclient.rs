@@ -31,6 +31,22 @@ pub const DEFAULT_SERVER: &str = "https://lightd-main.pirate.black:443";
 pub const WALLET_NAME: &str    = "arrr-light-wallet.dat";
 pub const LOGFILE_NAME: &str   = "debug-arrr-light-wallet.log";
 
+#[derive(Clone, Debug)]
+pub struct WalletStatus {
+    pub is_syncing: bool,
+    pub total_blocks: u64,
+    pub synced_blocks: u64,
+}
+
+impl WalletStatus {
+    pub fn new() -> Self {
+        WalletStatus {
+            is_syncing: false,
+            total_blocks: 0,
+            synced_blocks: 0
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct LightClientConfig {
@@ -59,6 +75,13 @@ impl LightClientConfig {
     }
 
     pub fn create(server: http::Uri, dangerous: bool) -> io::Result<(LightClientConfig, u64)> {
+        use std::net::ToSocketAddrs;
+        // Test for a connection first
+        format!("{}:{}", server.host().unwrap(), server.port_part().unwrap())
+            .to_socket_addrs()?
+            .next()
+            .ok_or(std::io::Error::new(ErrorKind::ConnectionRefused, "Couldn't resolve server!"))?;
+
         // Do a getinfo first, before opening the wallet
         let info = grpcconnector::get_info(server.clone(), dangerous)
             .map_err(|e| std::io::Error::new(ErrorKind::ConnectionRefused, e))?;
@@ -98,7 +121,14 @@ impl LightClientConfig {
             };
         }
 
-        zcash_data_location.into_boxed_path()
+        // Create directory if it doesn't exist
+        match std::fs::create_dir_all(zcash_data_location.clone()) {
+            Ok(_) => zcash_data_location.into_boxed_path(),
+            Err(e) => {
+                eprintln!("Couldn't create pirate directory!\n{}", e);
+                panic!("Couldn't create pirate directory!");
+            }
+        }
     }
 
     pub fn get_wallet_path(&self) -> Box<Path> {
@@ -203,6 +233,7 @@ pub struct LightClient {
     pub sapling_spend   : Vec<u8>,
 
     sync_lock           : Mutex<()>,
+    sync_status         : Arc<RwLock<WalletStatus>>, // The current syncing status of the Wallet.
 }
 
 impl LightClient {
@@ -227,7 +258,7 @@ impl LightClient {
 
     /// Method to create a test-only version of the LightClient
     #[allow(dead_code)]
-    fn unconnected(seed_phrase: String, dir: Option<String>) -> io::Result<Self> {
+    pub fn unconnected(seed_phrase: String, dir: Option<String>) -> io::Result<Self> {
         let config = LightClientConfig::create_unconnected("test".to_string(), dir);
         let mut l = LightClient {
                 wallet          : Arc::new(RwLock::new(LightWallet::new(Some(seed_phrase), &config, 0)?)),
@@ -235,6 +266,7 @@ impl LightClient {
                 sapling_output  : vec![], 
                 sapling_spend   : vec![],
                 sync_lock       : Mutex::new(()),
+                sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
             };
 
         l.set_wallet_initial_state(0);
@@ -260,6 +292,7 @@ impl LightClient {
                 sapling_output  : vec![], 
                 sapling_spend   : vec![],
                 sync_lock       : Mutex::new(()),
+                sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
             };
 
         l.set_wallet_initial_state(latest_block);
@@ -283,6 +316,7 @@ impl LightClient {
                 sapling_output  : vec![], 
                 sapling_spend   : vec![],
                 sync_lock       : Mutex::new(()),
+                sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
             };
 
         println!("Setting birthday to {}", birthday);
@@ -310,6 +344,7 @@ impl LightClient {
             sapling_output  : vec![], 
             sapling_spend   : vec![],
             sync_lock       : Mutex::new(()),
+            sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
         };
 
         lc.read_sapling_params();
@@ -446,12 +481,12 @@ impl LightClient {
         //let t_addresses = wallet.taddresses.read().unwrap().iter().map( |address| {
             // Get the balance for this address
         //    let balance = wallet.tbalance(Some(address.clone()));
-        //    
+           
         //    object!{
         //        "address" => address.clone(),
         //        "balance" => balance,
         //    }
-        //}).collect::<Vec<JsonValue>>();
+        // }).collect::<Vec<JsonValue>>();
 
         object!{
             "zbalance"           => wallet.zbalance(None),
@@ -618,9 +653,18 @@ impl LightClient {
         res
     }
 
+    pub fn do_encryption_status(&self) -> JsonValue {
+        let wallet = self.wallet.read().unwrap();
+        object!{
+            "encrypted" => wallet.is_encrypted(),
+            "locked"    => !wallet.is_unlocked_for_spending()
+        }
+    }
+
     pub fn do_list_transactions(&self) -> JsonValue {
         let wallet = self.wallet.read().unwrap();
-        // Create a list of TransactionItems
+
+        // Create a list of TransactionItems from wallet txs
         let mut tx_list = wallet.txs.read().unwrap().iter()
             .flat_map(| (_k, v) | {
                 let mut txns: Vec<JsonValue> = vec![];
@@ -688,6 +732,33 @@ impl LightClient {
             })
             .collect::<Vec<JsonValue>>();
 
+        // Add in all mempool txns
+        tx_list.extend(wallet.mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
+            use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
+            use std::convert::TryInto;
+            
+            let amount: u64 = wtx.outgoing_metadata.iter().map(|om| om.value).sum::<u64>();
+            let fee: u64 = DEFAULT_FEE.try_into().unwrap();
+
+            // Collect outgoing metadata
+            let outgoing_json = wtx.outgoing_metadata.iter()
+                .map(|om| 
+                    object!{
+                        "address" => om.address.clone(),
+                        "value"   => om.value,
+                        "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                }).collect::<Vec<JsonValue>>();                    
+
+            object! {
+                "block_height" => wtx.block,
+                "datetime"     => wtx.datetime,
+                "txid"         => format!("{}", wtx.txid),
+                "amount"       => -1 * (fee + amount) as i64,
+                "unconfirmed"  => true,
+                "outgoing_metadata" => outgoing_json,
+            }
+        }));
+
         tx_list.sort_by( |a, b| if a["block_height"] == b["block_height"] {
                                     a["txid"].as_str().cmp(&b["txid"].as_str())
                                 } else {
@@ -720,7 +791,7 @@ impl LightClient {
         Ok(array![new_address])
     }
 
-    pub fn do_rescan(&self) -> String {
+    pub fn do_rescan(&self) -> Result<JsonValue, String> {
         info!("Rescan starting");
         // First, clear the state from the wallet
         self.wallet.read().unwrap().clear_blocks();
@@ -735,7 +806,12 @@ impl LightClient {
         response
     }
 
-    pub fn do_sync(&self, print_updates: bool) -> String {
+    /// Return the syncing status of the wallet
+    pub fn do_scan_status(&self) -> WalletStatus {
+        self.sync_status.read().unwrap().clone()
+    }
+
+    pub fn do_sync(&self, print_updates: bool) -> Result<JsonValue, String> {
         // We can only do one sync at a time because we sync blocks in serial order
         // If we allow multiple syncs, they'll all get jumbled up.
         let _lock = self.sync_lock.lock().unwrap();
@@ -750,15 +826,17 @@ impl LightClient {
         // This will hold the latest block fetched from the RPC
         let latest_block_height = Arc::new(AtomicU64::new(0));
         let lbh = latest_block_height.clone();
-        fetch_latest_block(&self.get_server_uri(), self.config.no_cert_verification, move |block: BlockId| {
+        fetch_latest_block(&self.get_server_uri(), self.config.no_cert_verification, 
+            move |block: BlockId| {
                 lbh.store(block.height, Ordering::SeqCst);
             });
         let latest_block = latest_block_height.load(Ordering::SeqCst);
 
+
         if latest_block < last_scanned_height {
             let w = format!("Server's latest block({}) is behind ours({})", latest_block, last_scanned_height);
             warn!("{}", w);
-            return w;
+            return Err(w);
         }
 
         info!("Latest block is {}", latest_block);
@@ -769,7 +847,14 @@ impl LightClient {
         // If there's nothing to scan, just return
         if last_scanned_height == latest_block {
             info!("Nothing to sync, returning");
-            return "".to_string();
+            return Ok(object!{ "result" => "success" })
+        }
+
+        {
+            let mut status = self.sync_status.write().unwrap();
+            status.is_syncing = true;
+            status.synced_blocks = last_scanned_height;
+            status.total_blocks = latest_block;
         }
 
         // Count how many bytes we've downloaded
@@ -795,9 +880,16 @@ impl LightClient {
             info!("Start height is {}", start_height);
 
             // Show updates only if we're syncing a lot of blocks
-            if print_updates && end_height - start_height > 100 {
+            if print_updates && (latest_block - start_height) > 100 {
                 print!("Syncing {}/{}\r", start_height, latest_block);
                 io::stdout().flush().ok().expect("Could not flush stdout");
+            }
+
+            {
+                let mut status = self.sync_status.write().unwrap();
+                status.is_syncing = true;
+                status.synced_blocks = start_height;
+                status.total_blocks = latest_block;
             }
 
             // Fetch compact blocks
@@ -851,7 +943,7 @@ impl LightClient {
             // Make sure we're not re-orging too much!
             if total_reorg > (crate::lightwallet::MAX_REORG - 1) as u64 {
                 error!("Reorg has now exceeded {} blocks!", crate::lightwallet::MAX_REORG);
-                return format!("Reorg has exceeded {} blocks. Aborting.", crate::lightwallet::MAX_REORG);
+                return Err(format!("Reorg has exceeded {} blocks. Aborting.", crate::lightwallet::MAX_REORG));
             } 
             
             if invalid_height > 0 {
@@ -905,11 +997,14 @@ impl LightClient {
             println!(""); // New line to finish up the updates
         }
         
-        let mut responses = vec![];
-
         info!("Synced to {}, Downloaded {} kB", latest_block, bytes_downloaded.load(Ordering::SeqCst) / 1024);
-        responses.push(format!("Synced to {}, Downloaded {} kB", latest_block, bytes_downloaded.load(Ordering::SeqCst) / 1024));
-        
+        {
+            let mut status = self.sync_status.write().unwrap();
+            status.is_syncing = false;
+            status.synced_blocks = latest_block;
+            status.total_blocks = latest_block;
+        }
+
         // Get the Raw transaction for all the wallet transactions
 
         // We need to first copy over the Txids from the wallet struct, because
@@ -940,7 +1035,11 @@ impl LightClient {
             });
         };
 
-        responses.join("\n")
+        Ok(object!{
+            "result" => "success",
+            "latest_block" => latest_block,
+            "downloaded_bytes" => bytes_downloaded.load(Ordering::SeqCst)
+        })
     }
 
     pub fn do_send(&self, addrs: Vec<(&str, u64, Option<String>)>) -> Result<String, String> {

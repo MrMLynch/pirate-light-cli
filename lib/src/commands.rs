@@ -28,7 +28,58 @@ impl Command for SyncCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        lightclient.do_sync(true)
+        match lightclient.do_sync(true) {
+            Ok(j) => j.pretty(2),
+            Err(e) => e
+        }
+    }
+}
+
+struct EncryptionStatusCommand {}
+impl Command for EncryptionStatusCommand {
+    fn help(&self) -> String {
+        let mut h = vec![];
+        h.push("Check if the wallet is encrypted and if it is locked");
+        h.push("Usage:");
+        h.push("encryptionstatus");
+        h.push("");
+
+        h.join("\n")
+    }
+
+    fn short_help(&self) -> String {
+        "Check if the wallet is encrypted and if it is locked".to_string()
+    }
+
+    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
+        lightclient.do_encryption_status().pretty(2)
+    }
+}
+
+struct SyncStatusCommand {}
+impl Command for SyncStatusCommand {
+    fn help(&self) -> String {
+        let mut h = vec![];
+        h.push("Get the sync status of the wallet");
+        h.push("Usage:");
+        h.push("syncstatus");
+        h.push("");
+
+        h.join("\n")
+    }
+
+    fn short_help(&self) -> String {
+        "Get the sync status of the wallet".to_string()
+    }
+
+    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
+        let status = lightclient.do_scan_status();
+        match status.is_syncing {
+            false => object!{ "syncing" => "false" },
+            true  => object!{ "syncing" => "true",
+                              "synced_blocks" => status.synced_blocks,
+                              "total_blocks" => status.total_blocks } 
+        }.pretty(2)
     }
 }
 
@@ -51,7 +102,10 @@ impl Command for RescanCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        lightclient.do_rescan()
+        match lightclient.do_rescan() {
+            Ok(j) => j.pretty(2),
+            Err(e) => e
+        }
     }
 }
 
@@ -117,8 +171,6 @@ impl Command for InfoCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        lightclient.do_sync(true);
-        
         lightclient.do_info()
     }
 }
@@ -141,9 +193,10 @@ impl Command for BalanceCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        lightclient.do_sync(true);
-        
-        format!("{}", lightclient.do_balance().pretty(2))
+        match lightclient.do_sync(true) {
+            Ok(_) => format!("{}", lightclient.do_balance().pretty(2)),
+            Err(e) => e
+        }
     }
 }
 
@@ -409,10 +462,8 @@ impl Command for SendCommand {
         }
 
         // Check for a single argument that can be parsed as JSON
-        if args.len() == 1 {
-            // Sometimes on the command line, people use "'" for the quotes, which json::parse doesn't
-            // understand. So replace it with double-quotes
-            let arg_list = args[0].replace("'", "\"");
+        let send_args = if args.len() == 1 {
+            let arg_list = args[0];
 
             let json_args = match json::parse(&arg_list) {
                 Ok(j)  => j,
@@ -430,20 +481,14 @@ impl Command for SendCommand {
                 if !j.has_key("address") || !j.has_key("amount") {
                     Err(format!("Need 'address' and 'amount'\n"))
                 } else {
-                    Ok((j["address"].as_str().unwrap(), j["amount"].as_u64().unwrap(), j["memo"].as_str().map(|s| s.to_string())))
+                    Ok((j["address"].as_str().unwrap().to_string().clone(), j["amount"].as_u64().unwrap(), j["memo"].as_str().map(|s| s.to_string().clone())))
                 }
-            }).collect::<Result<Vec<(&str, u64, Option<String>)>, String>>();
+            }).collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
 
-            let send_args = match maybe_send_args {
-                Ok(a) => a,
+            match maybe_send_args {
+                Ok(a) => a.clone(),
                 Err(s) => { return format!("Error: {}\n{}", s, self.help()); }
-            };
-
-            lightclient.do_sync(true);
-            match lightclient.do_send(send_args) {
-                Ok(txid) => { object!{ "txid" => txid } },
-                Err(e)   => { object!{ "error" => e } }
-            }.pretty(2)
+            }
         } else if args.len() == 2 || args.len() == 3 {
             // Make sure we can parse the amount
             let value = match args[1].parse::<u64>() {
@@ -455,13 +500,21 @@ impl Command for SendCommand {
 
             let memo = if args.len() == 3 { Some(args[2].to_string()) } else {None};
             
-            lightclient.do_sync(true);
-            match lightclient.do_send(vec!((args[0], value, memo))) {
+            vec![(args[0].to_string(), value, memo)]
+        } else {
+            return self.help()
+        };
+
+        match lightclient.do_sync(true) {
+            Ok(_) => {
+                // Convert to the right format. String -> &str.
+                let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
+                match lightclient.do_send(tos) {
                 Ok(txid) => { object!{ "txid" => txid } },
                 Err(e)   => { object!{ "error" => e } }
             }.pretty(2)
-        } else {
-            self.help()
+        },
+            Err(e) => e
         }
     }
 }
@@ -543,9 +596,12 @@ impl Command for TransactionsCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        lightclient.do_sync(true);
-
-        format!("{}", lightclient.do_list_transactions().pretty(2))
+        match lightclient.do_sync(true) {
+            Ok(_) => {
+                format!("{}", lightclient.do_list_transactions().pretty(2))
+            },
+            Err(e) => e
+        }
     }
 }
 
@@ -637,9 +693,12 @@ impl Command for NotesCommand {
             false
         };
 
-        lightclient.do_sync(true);
-        
-        format!("{}", lightclient.do_list_notes(all_notes).pretty(2))
+        match lightclient.do_sync(true) {
+            Ok(_) => {
+                format!("{}", lightclient.do_list_notes(all_notes).pretty(2))
+            },
+            Err(e) => e
+        }
     }
 }
 
@@ -693,33 +752,64 @@ impl Command for QuitCommand {
 pub fn get_commands() -> Box<HashMap<String, Box<dyn Command>>> {
     let mut map: HashMap<String, Box<dyn Command>> = HashMap::new();
 
-    map.insert("sync".to_string(),          Box::new(SyncCommand{}));
-    map.insert("rescan".to_string(),        Box::new(RescanCommand{}));
-    map.insert("help".to_string(),          Box::new(HelpCommand{}));
-    map.insert("balance".to_string(),       Box::new(BalanceCommand{}));
-    map.insert("addresses".to_string(),     Box::new(AddressCommand{}));
-    map.insert("height".to_string(),        Box::new(HeightCommand{}));
-    map.insert("export".to_string(),        Box::new(ExportCommand{}));
-    map.insert("info".to_string(),          Box::new(InfoCommand{}));
-    map.insert("send".to_string(),          Box::new(SendCommand{}));
-    map.insert("save".to_string(),          Box::new(SaveCommand{}));
-    map.insert("quit".to_string(),          Box::new(QuitCommand{}));
-    map.insert("list".to_string(),          Box::new(TransactionsCommand{}));
-    map.insert("notes".to_string(),         Box::new(NotesCommand{}));
-    map.insert("new".to_string(),           Box::new(NewAddressCommand{}));
-    map.insert("seed".to_string(),          Box::new(SeedCommand{}));
-    map.insert("encrypt".to_string(),       Box::new(EncryptCommand{}));
-    map.insert("decrypt".to_string(),       Box::new(DecryptCommand{}));
-    map.insert("unlock".to_string(),        Box::new(UnlockCommand{}));
-    map.insert("lock".to_string(),          Box::new(LockCommand{}));
-    map.insert("fixbip39bug".to_string(),   Box::new(FixBip39BugCommand{}));
+    map.insert("sync".to_string(),              Box::new(SyncCommand{}));
+    map.insert("syncstatus".to_string(),        Box::new(SyncStatusCommand{}));
+    map.insert("encryptionstatus".to_string(),  Box::new(EncryptionStatusCommand{}));
+    map.insert("rescan".to_string(),            Box::new(RescanCommand{}));
+    map.insert("help".to_string(),              Box::new(HelpCommand{}));
+    map.insert("balance".to_string(),           Box::new(BalanceCommand{}));
+    map.insert("addresses".to_string(),         Box::new(AddressCommand{}));
+    map.insert("height".to_string(),            Box::new(HeightCommand{}));
+    map.insert("export".to_string(),            Box::new(ExportCommand{}));
+    map.insert("info".to_string(),              Box::new(InfoCommand{}));
+    map.insert("send".to_string(),              Box::new(SendCommand{}));
+    map.insert("save".to_string(),              Box::new(SaveCommand{}));
+    map.insert("quit".to_string(),              Box::new(QuitCommand{}));
+    map.insert("list".to_string(),              Box::new(TransactionsCommand{}));
+    map.insert("notes".to_string(),             Box::new(NotesCommand{}));
+    map.insert("new".to_string(),               Box::new(NewAddressCommand{}));
+    map.insert("seed".to_string(),              Box::new(SeedCommand{}));
+    map.insert("encrypt".to_string(),           Box::new(EncryptCommand{}));
+    map.insert("decrypt".to_string(),           Box::new(DecryptCommand{}));
+    map.insert("unlock".to_string(),            Box::new(UnlockCommand{}));
+    map.insert("lock".to_string(),              Box::new(LockCommand{}));
+    map.insert("fixbip39bug".to_string(),       Box::new(FixBip39BugCommand{}));
 
     Box::new(map)
 }
 
 pub fn do_user_command(cmd: &str, args: &Vec<&str>, lightclient: &LightClient) -> String {
-    match get_commands().get(cmd) {
+    match get_commands().get(&cmd.to_ascii_lowercase()) {
         Some(cmd) => cmd.exec(args, lightclient),
         None      => format!("Unknown command : {}. Type 'help' for a list of commands", cmd)
+    }
+}
+
+
+
+
+#[cfg(test)]
+pub mod tests {
+    use lazy_static::lazy_static;
+    use super::do_user_command;
+    use crate::lightclient::{LightClient};
+
+    lazy_static!{
+        static ref TEST_SEED: String = "youth strong sweet gorilla hammer unhappy congress stamp left stereo riot salute road tag clean toilet artefact fork certain leopard entire civil degree wonder".to_string();
+    }
+
+    #[test]
+    pub fn test_command_caseinsensitive() {
+        let lc = LightClient::unconnected(TEST_SEED.to_string(), None).unwrap();
+
+        assert_eq!(do_user_command("addresses", &vec![], &lc),
+                   do_user_command("AddReSSeS", &vec![], &lc));
+                assert_eq!(do_user_command("addresses", &vec![], &lc),
+                   do_user_command("Addresses", &vec![], &lc));
+    }
+
+    #[test]
+    pub fn test_nosync_commands() {
+        // The following commands should run 
     }
 }
