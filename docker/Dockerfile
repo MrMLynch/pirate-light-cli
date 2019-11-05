@@ -31,7 +31,7 @@ RUN cd /opt && wget https://download.libsodium.org/libsodium/releases/libsodium-
     tar xvf libsodium-1.0.17-mingw.tar.gz     
 
 # Cargo fetch the dependencies so we don't download them over and over again
-RUN cd /tmp && git clone https://github.com/adityapk00/zecwallet-light-cli.git && \
-    cd zecwallet-light-cli && \
+RUN cd /tmp && git clone https://github.com/mrmlynch/pirate-light-cli.git && \
+    cd pirate-light-cli && \
     cargo fetch && \
-    cd /tmp && rm -rf zecwallet-light-cli
+    cd /tmp && rm -rf pirate-light-cli

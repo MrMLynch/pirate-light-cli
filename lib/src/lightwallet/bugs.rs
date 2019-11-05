@@ -73,7 +73,7 @@ impl BugBip39Derivation {
         } 
         
         // Tranfer money
-        // 1. The desination is z address #0
+        // 1. The destination is z address #0
         let zaddr = client.do_address()["z_addresses"][0].as_str().unwrap().to_string();
         let balance_json = client.do_balance();
         let amount: u64 =  balance_json["zbalance"].as_u64().unwrap() 

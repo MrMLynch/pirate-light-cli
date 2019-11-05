@@ -27,9 +27,9 @@ use crate::ANCHOR_OFFSET;
 
 mod checkpoints;
 
-pub const DEFAULT_SERVER: &str = "https://lightd-main.zecwallet.co:443";
-pub const WALLET_NAME: &str    = "zecwallet-light-wallet.dat";
-pub const LOGFILE_NAME: &str   = "zecwallet-light-wallet.debug.log";
+pub const DEFAULT_SERVER: &str = "https://lightd-main.pirate.black:443";
+pub const WALLET_NAME: &str    = "arrr-light-wallet.dat";
+pub const LOGFILE_NAME: &str   = "debug-arrr-light-wallet.log";
 
 
 #[derive(Clone, Debug)]
@@ -84,10 +84,10 @@ impl LightClientConfig {
         } else {
             if cfg!(target_os="macos") || cfg!(target_os="windows") {
                 zcash_data_location = dirs::data_dir().expect("Couldn't determine app data directory!");
-                zcash_data_location.push("Zcash");
+                zcash_data_location.push("Pirate");
             } else {
                 zcash_data_location = dirs::home_dir().expect("Couldn't determine home directory!");
-                zcash_data_location.push(".zcash");
+                zcash_data_location.push(".pirate");
             };
 
             match &self.chain_name[..] {
@@ -318,7 +318,7 @@ impl LightClient {
         info!("Created LightClient to {}", &config.server);
 
         if crate::lightwallet::bugs::BugBip39Derivation::has_bug(&lc) {
-            let m = format!("WARNING!!!\nYour wallet has a bip39derivation bug that's showing incorrect addresses.\nPlease run 'fixbip39bug' to automatically fix the address derivation in your wallet!\nPlease see: https://github.com/adityapk00/zecwallet-light-cli/blob/master/bip39bug.md");
+            let m = format!("WARNING!!!\nYour wallet has a bip39derivation bug that's showing incorrect addresses.\nPlease run 'fixbip39bug' to automatically fix the address derivation in your wallet!\nPlease see: https://github.com/mrmlynch/pirate-light-cli/blob/master/bip39bug.md");
              info!("{}", m);
              println!("{}", m);
         }
@@ -392,21 +392,21 @@ impl LightClient {
             ).collect::<Vec<JsonValue>>();
 
         // Clone address so it can be moved into the closure
-        let address = addr.clone();
+        //let address = addr.clone();
 
-        // Go over all t addresses
-        let t_keys = wallet.get_t_secret_keys().iter()
-            .filter( move |(addr, _)| address.is_none() || address.as_ref() == Some(addr))
-            .map( |(addr, sk)|
-                object!{
-                    "address"     => addr.clone(),
-                    "private_key" => sk.clone(),
-                }
-            ).collect::<Vec<JsonValue>>();
+        // Go over all t addresses - not required for pirate
+        //let t_keys = wallet.get_t_secret_keys().iter()
+        //    .filter( move |(addr, _)| address.is_none() || address.as_ref() == Some(addr))
+        //    .map( |(addr, sk)|
+        //        object!{
+        //            "address"     => addr.clone(),
+        //           "private_key" => sk.clone(),
+        //        }
+        //    ).collect::<Vec<JsonValue>>();
 
         let mut all_keys = vec![];
         all_keys.extend_from_slice(&z_keys);
-        all_keys.extend_from_slice(&t_keys);
+        //all_keys.extend_from_slice(&t_keys);
 
         Ok(all_keys.into())
     }
@@ -419,13 +419,13 @@ impl LightClient {
             encode_payment_address(self.config.hrp_sapling_address(), &ad)
         }).collect::<Vec<String>>();
 
-        // Collect t addresses
-        let t_addresses = wallet.taddresses.read().unwrap().iter().map( |a| a.clone() )
-                            .collect::<Vec<String>>();
+        // Collect t addresses - not required for pirate
+        //let t_addresses = wallet.taddresses.read().unwrap().iter().map( |a| a.clone() )
+        //                    .collect::<Vec<String>>();
 
         object!{
             "z_addresses" => z_addresses,
-            "t_addresses" => t_addresses,
+        //    "t_addresses" => t_addresses,
         }
     }
 
@@ -442,23 +442,23 @@ impl LightClient {
             }
         }).collect::<Vec<JsonValue>>();
 
-        // Collect t addresses
-        let t_addresses = wallet.taddresses.read().unwrap().iter().map( |address| {
+        // Collect t addresses - not required for pirate
+        //let t_addresses = wallet.taddresses.read().unwrap().iter().map( |address| {
             // Get the balance for this address
-            let balance = wallet.tbalance(Some(address.clone()));
-            
-            object!{
-                "address" => address.clone(),
-                "balance" => balance,
-            }
-        }).collect::<Vec<JsonValue>>();
+        //    let balance = wallet.tbalance(Some(address.clone()));
+        //    
+        //    object!{
+        //        "address" => address.clone(),
+        //        "balance" => balance,
+        //    }
+        //}).collect::<Vec<JsonValue>>();
 
         object!{
             "zbalance"           => wallet.zbalance(None),
             "verified_zbalance"  => wallet.verified_zbalance(None),
-            "tbalance"           => wallet.tbalance(None),
+            //"tbalance"           => wallet.tbalance(None),
             "z_addresses"        => z_addresses,
-            "t_addresses"        => t_addresses,
+            //"t_addresses"        => t_addresses,
         }
     }
 
@@ -670,19 +670,19 @@ impl LightClient {
                     })
                 );
 
-                // Get the total transparent received
-                let total_transparent_received = v.utxos.iter().map(|u| u.value).sum::<u64>();
-                if total_transparent_received > v.total_transparent_value_spent {
+                // Get the total transparent received - not required for pirate
+                //let total_transparent_received = v.utxos.iter().map(|u| u.value).sum::<u64>();
+                //if total_transparent_received > v.total_transparent_value_spent {
                     // Create an input transaction for the transparent value as well.
-                    txns.push(object!{
-                        "block_height" => v.block,
-                        "datetime"     => v.datetime,
-                        "txid"         => format!("{}", v.txid),
-                        "amount"       => total_transparent_received as i64 - v.total_transparent_value_spent as i64,
-                        "address"      => v.utxos.iter().map(|u| u.address.clone()).collect::<Vec<String>>().join(","),
-                        "memo"         => None::<String>
-                    })
-                }
+                //    txns.push(object!{
+                //        "block_height" => v.block,
+                //        "datetime"     => v.datetime,
+                //        "txid"         => format!("{}", v.txid),
+                //        "amount"       => total_transparent_received as i64 - v.total_transparent_value_spent as i64,
+                //        "address"      => v.utxos.iter().map(|u| u.address.clone()).collect::<Vec<String>>().join(","),
+                //        "memo"         => None::<String>
+                //    })
+                //}
 
                 txns
             })
@@ -709,7 +709,7 @@ impl LightClient {
 
         let new_address = match addr_type {
             "z" => wallet.add_zaddr(),
-            "t" => wallet.add_taddr(),
+            //"t" => wallet.add_taddr(),
             _   => {
                 let e = format!("Unrecognized address type: {}", addr_type);
                 error!("{}", e);
