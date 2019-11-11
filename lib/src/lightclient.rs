@@ -27,7 +27,7 @@ use crate::ANCHOR_OFFSET;
 
 mod checkpoints;
 
-pub const DEFAULT_SERVER: &str = "https://lightd-main.pirate.black:443";
+pub const DEFAULT_SERVER: &str = "https://lightd.pirate.black:443";
 pub const WALLET_NAME: &str    = "arrr-light-wallet.dat";
 pub const LOGFILE_NAME: &str   = "debug-arrr-light-wallet.log";
 
