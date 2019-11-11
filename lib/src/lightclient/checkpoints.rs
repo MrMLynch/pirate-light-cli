@@ -83,8 +83,8 @@ pub mod tests {
         assert_eq!(get_test_checkpoint(597000).unwrap().0, 595000);
 
         assert_eq!(get_main_checkpoint(500000), None);
-        assert_eq!(get_main_checkpoint(570000).unwrap().0, 570000);
-        assert_eq!(get_main_checkpoint(585000).unwrap().0, 570000);
+        assert_eq!(get_main_checkpoint(615000).unwrap().0, 615000);
+        assert_eq!(get_main_checkpoint(617000).unwrap().0, 615000);
     }
 
 }
