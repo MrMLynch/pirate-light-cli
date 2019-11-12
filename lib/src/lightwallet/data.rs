@@ -267,7 +267,7 @@ impl Utxo {
         let mut address_bytes = vec![0; address_len as usize];
         reader.read_exact(&mut address_bytes)?;
         let address = String::from_utf8(address_bytes).unwrap();
-        assert_eq!(address.chars().take(1).collect::<Vec<char>>()[0], 't');
+        assert_eq!(address.chars().take(1).collect::<Vec<char>>()[0], 'R');
 
         let mut txid_bytes = [0; 32];
         reader.read_exact(&mut txid_bytes)?;

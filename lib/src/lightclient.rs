@@ -194,7 +194,7 @@ impl LightClientConfig {
         }
     }
 
-    pub fn base58_pubkey_address(&self) -> [u8; 2] {
+    pub fn base58_pubkey_address(&self) -> [u8; 1] {
         match &self.chain_name[..] {
             "main"    => mainnet::B58_PUBKEY_ADDRESS_PREFIX,
             "test"    => testnet::B58_PUBKEY_ADDRESS_PREFIX,
@@ -204,7 +204,7 @@ impl LightClientConfig {
     }
 
 
-    pub fn base58_script_address(&self) -> [u8; 2] {
+    pub fn base58_script_address(&self) -> [u8; 1] {
         match &self.chain_name[..] {
             "main"    => mainnet::B58_SCRIPT_ADDRESS_PREFIX,
             "test"    => testnet::B58_SCRIPT_ADDRESS_PREFIX,
@@ -1078,24 +1078,24 @@ pub mod tests {
         let lc = super::LightClient::unconnected(TEST_SEED.to_string(), None).unwrap();
 
         assert!(!lc.do_export(None).is_err());
-        assert!(!lc.do_new_address("z").is_err());
-        assert!(!lc.do_new_address("t").is_err());
+        assert!(!lc.do_new_address("zs").is_err());
+        assert!(!lc.do_new_address("R").is_err());
         assert_eq!(lc.do_seed_phrase().unwrap()["seed"], TEST_SEED.to_string());
 
         // Encrypt and Lock the wallet
         lc.wallet.write().unwrap().encrypt("password".to_string()).unwrap();
         assert!(lc.do_export(None).is_err());
         assert!(lc.do_seed_phrase().is_err());
-        assert!(lc.do_new_address("t").is_err());
-        assert!(lc.do_new_address("z").is_err());
-        assert!(lc.do_send(vec![("z", 0, None)]).is_err());
+        assert!(lc.do_new_address("R").is_err());
+        assert!(lc.do_new_address("zs").is_err());
+        assert!(lc.do_send(vec![("zs", 0, None)]).is_err());
 
         // Do a unlock, and make sure it all works now
         lc.wallet.write().unwrap().unlock("password".to_string()).unwrap();
         assert!(!lc.do_export(None).is_err());
         assert!(!lc.do_seed_phrase().is_err());
-        assert!(!lc.do_new_address("t").is_err());
-        assert!(!lc.do_new_address("z").is_err());
+        assert!(!lc.do_new_address("R").is_err());
+        assert!(!lc.do_new_address("zs").is_err());
     }
 
     #[test]
@@ -1104,10 +1104,10 @@ pub mod tests {
 
         // Add new z and t addresses
             
-        let taddr1 = lc.do_new_address("t").unwrap()[0].as_str().unwrap().to_string();
-        let taddr2 = lc.do_new_address("t").unwrap()[0].as_str().unwrap().to_string();        
-        let zaddr1 = lc.do_new_address("z").unwrap()[0].as_str().unwrap().to_string();
-        let zaddr2 = lc.do_new_address("z").unwrap()[0].as_str().unwrap().to_string();
+        let taddr1 = lc.do_new_address("R").unwrap()[0].as_str().unwrap().to_string();
+        let taddr2 = lc.do_new_address("R").unwrap()[0].as_str().unwrap().to_string();        
+        let zaddr1 = lc.do_new_address("zs").unwrap()[0].as_str().unwrap().to_string();
+        let zaddr2 = lc.do_new_address("zs").unwrap()[0].as_str().unwrap().to_string();
         
         let addresses = lc.do_address();
         assert_eq!(addresses["z_addresses"].len(), 3);

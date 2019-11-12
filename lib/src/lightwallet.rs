@@ -583,7 +583,7 @@ impl LightWallet {
         }
     }
 
-    pub fn address_from_prefix_sk(prefix: &[u8; 2], sk: &secp256k1::SecretKey) -> String {
+    pub fn address_from_prefix_sk(prefix: &[u8; 1], sk: &secp256k1::SecretKey) -> String {
         let secp = secp256k1::Secp256k1::new();
         let pk = secp256k1::PublicKey::from_secret_key(&secp, &sk);
 
@@ -1372,7 +1372,7 @@ impl LightWallet {
 
         let total_value = tos.iter().map(|to| to.1).sum::<u64>();
         println!(
-            "0: Creating transaction sending {} ztoshis to {} addresses",
+            "0: Creating transaction sending {} arrrtoshis to {} addresses",
             total_value, tos.len()
         );
 

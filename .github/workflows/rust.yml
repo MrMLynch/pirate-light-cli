@@ -34,14 +34,14 @@ jobs:
         uses: actions/upload-artifact@v1
         if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu') 
         with:
-          name: ${{ matrix.os }}-zecwallet-cli
-          path: target/release/zecwallet-cli
+          name: ${{ matrix.os }}-arrrwallet-cli
+          path: target/release/arrrwallet-cli
       - name: Upload windows
         uses: actions/upload-artifact@v1
         if: contains(matrix.os, 'windows')
         with:
-          name: ${{ matrix.os }}-zecwallet-cli.exe
-          path: target/release/zecwallet-cli.exe
+          name: ${{ matrix.os }}-arrrwallet-cli.exe
+          path: target/release/arrrwallet-cli.exe
 
 
   linux_arm7:
@@ -62,8 +62,8 @@ jobs:
         - name: Upload
           uses: actions/upload-artifact@v1
           with:
-            name: linux_armv7-zecwallet-cli
-            path: target/armv7-unknown-linux-gnueabihf/release/zecwallet-cli
+            name: linux_armv7-arrrwallet-cli
+            path: target/armv7-unknown-linux-gnueabihf/release/arrrwallet-cli
 
   linux_aarch64:
       name: Linux ARM64
@@ -83,6 +83,6 @@ jobs:
         - name: Upload
           uses: actions/upload-artifact@v1
           with:
-            name: linux_aarch64-zecwallet-cli
-            path: target/aarch64-unknown-linux-gnu/release/zecwallet-cli            
+            name: linux_aarch64-arrrwallet-cli
+            path: target/aarch64-unknown-linux-gnu/release/arrrwallet-cli            
 

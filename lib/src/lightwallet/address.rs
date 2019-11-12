@@ -24,7 +24,7 @@ impl From<TransparentAddress> for RecipientAddress {
 }
 
 impl RecipientAddress {
-    pub fn from_str(s: &str, hrp_sapling_address: &str, b58_pubkey_address: [u8; 2], b58_script_address: [u8; 2]) -> Option<Self> {
+    pub fn from_str(s: &str, hrp_sapling_address: &str, b58_pubkey_address: [u8; 1], b58_script_address: [u8; 1]) -> Option<Self> {
         // Try to match a sapling z address 
         if let Some(pa) = match decode_payment_address(hrp_sapling_address, s) {
                                 Ok(ret) => ret,

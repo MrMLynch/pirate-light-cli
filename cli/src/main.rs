@@ -60,8 +60,8 @@ pub fn main() {
                 match e.raw_os_error() {
                     Some(13) => report_permission_error(),
                     _        => {},
-            }
-        };
+                }
+            };
             return;
         }
     };

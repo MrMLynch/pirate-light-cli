@@ -9,10 +9,10 @@ pub fn get_closest_checkpoint(chain_name: &str, height: u64) ->  Option<(u64, &'
 fn get_test_checkpoint(height: u64) ->  Option<(u64, &'static str, &'static str)> {
     let checkpoints: Vec<(u64, &str, &str)> = vec![
         (560000, "000000004ea18707105a30716940b95420ace34d0dd71caddf47753155b965e7",
-		 ""
+                 ""
         ),
         (595000, "00000000c49d7db4ebb7ec6ffdc145efc18b00c7fe21e9e06d2ebaef5d60c3f7",
-		 ""
+                 ""
         )
     ];
 
@@ -23,7 +23,7 @@ fn get_test_checkpoint(height: u64) ->  Option<(u64, &'static str, &'static str)
 fn get_main_checkpoint(height: u64) ->  Option<(u64, &'static str, &'static str)> {
     let checkpoints: Vec<(u64, &str, &str)> = vec![
         (615000, "0000000000d2f0af8a6e133760240b1cbfba138c94842645767d0958bc12a62f",
-		 ""
+                 ""
         )
     ];
 
