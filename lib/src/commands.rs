@@ -111,6 +111,32 @@ impl Command for RescanCommand {
 }
 
 
+struct ClearCommand {}
+impl Command for ClearCommand {
+    fn help(&self) -> String {
+        let mut h = vec![];
+        h.push("Clear the wallet state, rolling back the wallet to an empty state.");
+        h.push("Usage:");
+        h.push("clear");
+        h.push("");
+        h.push("This command will clear all notes, utxos and transactions from the wallet, setting up the wallet to be synced from scratch.");
+        
+        h.join("\n")
+    }
+
+    fn short_help(&self) -> String {
+        "Clear the wallet state, rolling back the wallet to an empty state.".to_string()
+    }
+
+    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
+       lightclient.clear_state();
+       
+       let result = object!{ "result" => "success" };
+       
+       result.pretty(2)
+    }
+}
+
 struct HelpCommand {}
 impl Command for HelpCommand {
     fn help(&self) -> String {
@@ -518,10 +544,10 @@ impl Command for SendCommand {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
                 match lightclient.do_send(tos) {
-                Ok(txid) => { object!{ "txid" => txid } },
-                Err(e)   => { object!{ "error" => e } }
-            }.pretty(2)
-        },
+                    Ok(txid) => { object!{ "txid" => txid } },
+                    Err(e)   => { object!{ "error" => e } }
+                }.pretty(2)
+            },
             Err(e) => e
         }
     }
@@ -617,10 +643,11 @@ struct HeightCommand {}
 impl Command for HeightCommand {
     fn help(&self)  -> String {
         let mut h = vec![];
-        h.push("Get the latest block height that the wallet is at");
+        h.push("Get the latest block height that the wallet is at.");
         h.push("Usage:");
-        h.push("height");
+        h.push("height [do_sync = true | false]");
         h.push("");
+        h.push("Pass 'true' (default) to sync to the server to get the latest block height. Pass 'false' to get the latest height in the wallet without checking with the server.");
 
         h.join("\n")
     }
@@ -629,11 +656,19 @@ impl Command for HeightCommand {
         "Get the latest block height that the wallet is at".to_string()
     }
 
-    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        format!("{}",
-            object! {
-                "height" => lightclient.last_scanned_height()
-            }.pretty(2))
+    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        if args.len() > 1 {
+            return format!("Didn't understand arguments\n{}", self.help());
+        }
+
+        if args.len() == 0 || (args.len() == 1 && args[0].trim() == "true") {
+            match lightclient.do_sync(true) {
+                Ok(_) => format!("{}", object! { "height" => lightclient.last_scanned_height()}.pretty(2)),
+                Err(e) => e
+            }
+        } else {
+            format!("{}", object! { "height" => lightclient.last_scanned_height()}.pretty(2))
+        }
     }
 }
 
@@ -764,6 +799,7 @@ pub fn get_commands() -> Box<HashMap<String, Box<dyn Command>>> {
     map.insert("syncstatus".to_string(),        Box::new(SyncStatusCommand{}));
     map.insert("encryptionstatus".to_string(),  Box::new(EncryptionStatusCommand{}));
     map.insert("rescan".to_string(),            Box::new(RescanCommand{}));
+    map.insert("clear".to_string(),             Box::new(ClearCommand{}));
     map.insert("help".to_string(),              Box::new(HelpCommand{}));
     map.insert("balance".to_string(),           Box::new(BalanceCommand{}));
     map.insert("addresses".to_string(),         Box::new(AddressCommand{}));
