@@ -880,18 +880,18 @@ impl LightWallet {
     }
 
     // If the last taddress was used, ensure we add the next HD taddress to the wallet. 
-    pub fn ensure_hd_taddresses(&self, address: &String) {
-        let last_address = {
-            self.taddresses.read().unwrap().last().unwrap().clone()
-        };
+    // pub fn ensure_hd_taddresses(&self, address: &String) {
+    //     let last_address = {
+    //         self.taddresses.read().unwrap().last().unwrap().clone()
+    //     };
         
-        if *last_address == *address {
-            // If the wallet is locked, this is a no-op. That is fine, since we really
-            // need to only add new addresses when restoring a new wallet, when it will not be locked.
-            // Also, if it is locked, the user can't create new addresses anyway. 
-            self.add_taddr();
-        }
-    }
+    //     if *last_address == *address {
+    //         // If the wallet is locked, this is a no-op. That is fine, since we really
+    //         // need to only add new addresses when restoring a new wallet, when it will not be locked.
+    //         // Also, if it is locked, the user can't create new addresses anyway. 
+    //         self.add_taddr();
+    //     }
+    // }
 
     // If the last zaddress was used, ensure we add the next HD zaddress to the wallet
     pub fn ensure_hd_zaddresses(&self, address: &String) {
@@ -962,7 +962,7 @@ impl LightWallet {
                             self.add_toutput_to_wtx(height, datetime, &tx.txid(), &vout, n as u64);
 
                             // Ensure that we add any new HD addresses
-                            self.ensure_hd_taddresses(&address);
+                            // self.ensure_hd_taddresses(&address);
                         }
                     },
                     _ => {}
